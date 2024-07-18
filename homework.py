@@ -1,6 +1,7 @@
 import os
+from pprint import pprint
 
-import requests
+import requests, time
 from dotenv import load_dotenv
 from telebot import TeleBot, types
 
@@ -32,42 +33,51 @@ def check_tokens():
 
 
 def send_message(bot, message):
-    ...
+    bot.send_message(
+        chat_id=TELEGRAM_CHAT_ID,
+        text=message
+    )
 
 
 def get_api_answer(timestamp):
-    ...
+    homework_statuses = requests.get(
+        ENDPOINT,
+        headers=HEADERS,
+        params={'from_date': f'{timestamp}'},
+    )
+    return homework_statuses.json()
 
 
 def check_response(response):
-    ...
+    if response['homeworks'][0]:
+        return response['homeworks'][0]
+    return False
 
 
-# def parse_status(homework):
-#     ...
-#
-#     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+def parse_status(homework):
+    homework_name = homework['homework_name']
+    verdict = HOMEWORK_VERDICTS[f'{homework["status"]}']
+
+    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def main():
     """Основная логика работы бота."""
-
     check_tokens()
-
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    # timestamp = int(time.time())
+    homework = check_response(get_api_answer(int(time.time()) - RETRY_PERIOD))
+    if homework:
+        send_message(bot, message=parse_status(homework))
+    pass
+    while True:
+        try:
 
-    # ...
+            ...
 
-    # while True:
-    #     try:
-    #
-    #         ...
-    #
-    #     except Exception as error:
-    #         message = f'Сбой в работе программы: {error}'
-    #         ...
-    #     ...
+        except Exception as error:
+            message = f'Сбой в работе программы: {error}'
+            ...
+        ...
 
 
 if __name__ == '__main__':
