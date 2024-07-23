@@ -1,9 +1,11 @@
-import os
+import os, logging
 from pprint import pprint
 
 import requests, time
 from dotenv import load_dotenv
 from telebot import TeleBot, types
+
+from exceptions import NoTokenEnv
 
 load_dotenv()
 
@@ -19,9 +21,14 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO,
+)
+
 
 def check_tokens():
-    """Проверка переменных среды."""
+    """Проверка наличия переменных среды."""
     required_tokens = [
         'PRACTICUM_TOKEN',
         'TELEGRAM_TOKEN',
@@ -29,7 +36,7 @@ def check_tokens():
     ]
     for token in required_tokens:
         if token not in os.environ:
-            raise ValueError(f'для работы бота не хватает токена {token}')
+            raise NoTokenEnv(f'для работы бота не хватает токена {token}')
 
 
 def send_message(bot, message):
@@ -48,10 +55,9 @@ def get_api_answer(timestamp):
     return homework_statuses.json()
 
 
-def check_response(response):
-    if response['homeworks'][0]:
-        return response['homeworks'][0]
-    return False
+def check_response(api_response):
+    if api_response['homeworks'][0]:
+        return True
 
 
 def parse_status(homework):
@@ -65,19 +71,18 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    homework = check_response(get_api_answer(int(time.time()) - RETRY_PERIOD))
-    if homework:
-        send_message(bot, message=parse_status(homework))
-    pass
+    timestamp = int(time.time())
     while True:
         try:
-
-            ...
-
+            time.sleep(RETRY_PERIOD)
+            api_response = get_api_answer(timestamp)
+            timestamp = api_response['current_time']
+            if check_response(api_response):
+                send_message(bot, parse_status(api_response['homeworks'][0]))
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            ...
-        ...
+            send_message(bot, message)
+            logging.error(error, exc_info=True)
 
 
 if __name__ == '__main__':
