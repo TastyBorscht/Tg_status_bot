@@ -2,12 +2,12 @@ import logging
 import os
 import sys
 import time
-
+from http import HTTPStatus
 import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import NoTokenEnv, WrongHomeworkStatus
+from exceptions import NoTokenEnv, WrongHomeworkStatus, ApiIsNotReachable, CantSendMessage
 
 load_dotenv()
 
@@ -15,7 +15,7 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-RETRY_PERIOD = 600
+RETRY_PERIOD = 30
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -29,7 +29,7 @@ logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    '%(asctime)s - %(levelname)s - %(message)s'
 )
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -48,13 +48,26 @@ def check_tokens():
             raise NoTokenEnv(f'для работы бота не хватает токена {token}')
 
 
+# def send_message(bot, message):
+#     """Отправка сообщения в телеграм."""
+#
+#     bot.send_message(
+#         chat_id=TELEGRAM_CHAT_ID,
+#         text=message
+#     )
+#     logger.debug(f'Удачная отправка сообщения "{message}"')
+
+
 def send_message(bot, message):
     """Отправка сообщения в телеграм."""
-    bot.send_message(
-        chat_id=TELEGRAM_CHAT_ID,
-        text=message
-    )
-    logger.debug(f'Удачная отправка сообщения "{message}"')
+    try:
+        bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=message
+        )
+        logger.debug(f'Удачная отправка сообщения "{message}"')
+    except Exception as e:
+        raise CantSendMessage(f'Не переслано сообщение {message}. Ошибка: {e}')
 
 
 def get_api_answer(timestamp):
@@ -64,6 +77,9 @@ def get_api_answer(timestamp):
         headers=HEADERS,
         params={'from_date': f'{timestamp}'},
     )
+    if homework_statuses.status_code != HTTPStatus.OK:
+        logger.error(f'API не доступен, статус запроса {homework_statuses.status_code}')
+        raise requests.RequestException(f'API не доступен, статус запроса {homework_statuses.status_code}')
     return homework_statuses.json()
 
 
@@ -89,12 +105,12 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = 0
     prev_status = None
     prev_message = None
     while True:
+        time.sleep(RETRY_PERIOD)
         try:
-            time.sleep(RETRY_PERIOD)
             api_response = get_api_answer(timestamp)
             if not check_response(api_response):
                 continue
@@ -103,6 +119,9 @@ def main():
             prev_status = api_response['homeworks'][0]['status']
             timestamp = api_response['current_date']
             send_message(bot, parse_status(api_response['homeworks'][0]))
+        except CantSendMessage as error:
+            logger.error(error, exc_info=True)
+            continue
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
