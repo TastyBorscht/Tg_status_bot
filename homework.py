@@ -109,29 +109,27 @@ def main():
     prev_status = None
     prev_message = None
     while True:
-        time.sleep(RETRY_PERIOD)
         try:
             api_response = get_api_answer(timestamp)
-            if not check_response(api_response):
+            if check_response(api_response) is False:
                 continue
             if prev_status == api_response['homeworks'][0]['status']:
                 logger.debug('статус домашней работы не изменился.')
+                continue
             prev_status = api_response['homeworks'][0]['status']
             timestamp = api_response['current_date']
             send_message(bot, parse_status(api_response['homeworks'][0]))
-        except CantSendMessage as error:
-            logger.error(error, exc_info=True)
-            continue
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
-            if prev_message is None or prev_message != message:
+            if (prev_message != message) and not isinstance(error, CantSendMessage):
                 prev_message = message
                 send_message(bot, message)
                 continue
             if prev_message == message:
                 logger.debug('Статус проверки не изменился.')
-
+        finally:
+            time.sleep(5)
 
 if __name__ == '__main__':
     main()
