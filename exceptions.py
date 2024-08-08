@@ -12,3 +12,11 @@ class ApiIsNotReachable(Exception):
 
 class CantSendMessage(Exception):
     pass
+
+
+class NoHomeworkName(Exception):
+     pass
+
+
+class NoHomeworkInResponse(Exception):
+    pass

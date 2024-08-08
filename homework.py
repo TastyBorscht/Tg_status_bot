@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import NoTokenEnv, WrongHomeworkStatus, ApiIsNotReachable, CantSendMessage
+from exceptions import NoTokenEnv, WrongHomeworkStatus, ApiIsNotReachable, CantSendMessage, NoHomeworkInResponse
 
 load_dotenv()
 
@@ -15,7 +15,7 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
-RETRY_PERIOD = 30
+RETRY_PERIOD = 600
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -48,16 +48,6 @@ def check_tokens():
             raise NoTokenEnv(f'для работы бота не хватает токена {token}')
 
 
-# def send_message(bot, message):
-#     """Отправка сообщения в телеграм."""
-#
-#     bot.send_message(
-#         chat_id=TELEGRAM_CHAT_ID,
-#         text=message
-#     )
-#     logger.debug(f'Удачная отправка сообщения "{message}"')
-
-
 def send_message(bot, message):
     """Отправка сообщения в телеграм."""
     try:
@@ -72,33 +62,38 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Получить ответ от api-сервиса."""
-    homework_statuses = requests.get(
-        ENDPOINT,
-        headers=HEADERS,
-        params={'from_date': f'{timestamp}'},
-    )
-    if homework_statuses.status_code != HTTPStatus.OK:
+    try:
+        homework_statuses = requests.get(
+            ENDPOINT,
+            headers=HEADERS,
+            params={'from_date': f'{timestamp}'},
+        )
+    except Exception:
         logger.error(f'API не доступен, статус запроса {homework_statuses.status_code}')
         raise requests.RequestException(f'API не доступен, статус запроса {homework_statuses.status_code}')
+    if homework_statuses.status_code != HTTPStatus.OK:
+        logger.error(f'Неправильный код запроса: {homework_statuses.status_code}')
+        raise ApiIsNotReachable(f'API не доступен, статус запроса {homework_statuses.status_code}')
     return homework_statuses.json()
 
 
 def check_response(api_response):
     """Проверяет, содержит ли ответ от API сервиса нужный словарь."""
-    if api_response['homeworks']:
-        return True
-    logger.debug('Нет новых домашних работ с прошлого запроса.')
-    return False
+    try:
+        api_response['homeworks']
+    except Exception:
+        raise NoHomeworkInResponse('Нет новых домашних работ с прошлого запроса.')
 
 
 def parse_status(homework):
     """Составляет сообщение на основе статуса домашней работы."""
-    homework_name = homework['homework_name']
     try:
+        homework_name = homework['homework_name']
         verdict = HOMEWORK_VERDICTS[f'{homework["status"]}']
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    except WrongHomeworkStatus:
-        logger.error('Неожиданный статус домашней работы.')
+    except Exception as e:
+        logger.error(e)
+        raise WrongHomeworkStatus('Неожиданный статус домашней работы.')
 
 
 def main():
@@ -111,8 +106,6 @@ def main():
     while True:
         try:
             api_response = get_api_answer(timestamp)
-            if check_response(api_response) is False:
-                continue
             if prev_status == api_response['homeworks'][0]['status']:
                 logger.debug('статус домашней работы не изменился.')
                 continue
@@ -122,14 +115,17 @@ def main():
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
-            if (prev_message != message) and not isinstance(error, CantSendMessage):
+            if prev_message != message and not isinstance(error, CantSendMessage):
                 prev_message = message
-                send_message(bot, message)
-                continue
+                try:
+                    send_message(bot, message)
+                except Exception as error:
+                    logger.error(error, exc_info=True)
+                    continue
             if prev_message == message:
                 logger.debug('Статус проверки не изменился.')
         finally:
-            time.sleep(5)
+            time.sleep(RETRY_PERIOD)
 
 if __name__ == '__main__':
     main()
