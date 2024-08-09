@@ -79,10 +79,14 @@ def get_api_answer(timestamp):
 
 def check_response(api_response):
     """Проверяет, содержит ли ответ от API сервиса нужный словарь."""
-    try:
-        api_response['homeworks']
-    except Exception:
-        raise NoHomeworkInResponse('Нет новых домашних работ с прошлого запроса.')
+    if not (
+            isinstance(api_response, dict)
+            and isinstance(api_response['homeworks'], list)
+    ):
+        raise TypeError('Неверная структура данных в ответе от api-сервиса.')
+    if 'homeworks' not in api_response:
+        raise NoHomeworkInResponse
+
 
 
 def parse_status(homework):
@@ -100,12 +104,13 @@ def main():
     """Основная логика работы бота."""
     check_tokens()
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = 0
+    timestamp = int(time.time())
     prev_status = None
     prev_message = None
     while True:
         try:
             api_response = get_api_answer(timestamp)
+            check_response(api_response)
             if prev_status == api_response['homeworks'][0]['status']:
                 logger.debug('статус домашней работы не изменился.')
                 continue
@@ -126,6 +131,7 @@ def main():
                 logger.debug('Статус проверки не изменился.')
         finally:
             time.sleep(RETRY_PERIOD)
+
 
 if __name__ == '__main__':
     main()

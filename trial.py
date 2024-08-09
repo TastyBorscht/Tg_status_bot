@@ -1,23 +1,27 @@
 from exceptions import WrongHomeworkStatus
 
 
-def delenie():
-    try:
-        a = 5 / 0
-    except Exception as e:
-        print(e)
-        raise WrongHomeworkStatus(f'delenint na nol')
+# def delenie():
+#     try:
+#         a = 5 / 0
+#     except Exception as e:
+#         print(e)
+#         raise WrongHomeworkStatus(f'delenint na nol')
+#
+#
+# def main():
+#     while True:
+#         try:
+#             delenie()
+#         except Exception as error:
+#             if isinstance(error, WrongHomeworkStatus):
+#                 print('sobaken')
+#             print(error)
+#             break
+#
+#
+# main()
 
-
-def main():
-    while True:
-        try:
-            delenie()
-        except Exception as error:
-            if isinstance(error, WrongHomeworkStatus):
-                print('sobaken')
-            print(error)
-            break
-
-
-main()
+d = {'1': 'one'}
+if '2' not in d:
+    print('im sosige')
