@@ -15,7 +15,7 @@ class CantSendMessage(Exception):
 
 
 class NoHomeworkName(Exception):
-     pass
+    pass
 
 
 class NoHomeworkInResponse(Exception):

@@ -42,10 +42,16 @@ def check_tokens():
         'TELEGRAM_TOKEN',
         'TELEGRAM_CHAT_ID',
     ]
+    missing_tokens = []
     for token in required_tokens:
         if token not in os.environ:
-            logger.critical(f'для работы бота не хватает токена {token}')
-            raise NoTokenEnv(f'для работы бота не хватает токена {token}')
+            missing_tokens.append(token)
+    if missing_tokens:
+        logger.critical(
+            f'для работы бота не хватает токена(ов): {missing_tokens}'
+        )
+        return False
+    return True
 
 
 def send_message(bot, message):
@@ -77,16 +83,28 @@ def get_api_answer(timestamp):
     return homework_statuses.json()
 
 
+# def check_response(api_response):
+#     """Проверяет, содержит ли ответ от API сервиса нужный словарь."""
+#     if 'homeworks' not in api_response:
+#         raise NoHomeworkInResponse
+#     if not (
+#             isinstance(api_response, dict)
+#             and isinstance(api_response['homeworks'], list)
+#     ):
+#         raise TypeError('Неверная структура данных в ответе от api-сервиса.')
+
+
 def check_response(api_response):
     """Проверяет, содержит ли ответ от API сервиса нужный словарь."""
-    if not (
-            isinstance(api_response, dict)
-            and isinstance(api_response['homeworks'], list)
-    ):
+    if not isinstance(api_response, dict):
         raise TypeError('Неверная структура данных в ответе от api-сервиса.')
     if 'homeworks' not in api_response:
-        raise NoHomeworkInResponse
-
+        raise NoHomeworkInResponse(
+            'Ответ от api-сервиса не содержит списка домашних работ.')
+    if not isinstance(api_response['homeworks'], list):
+        raise TypeError('Неверная структура данных в ответе от api-сервиса.')
+    if not api_response['homeworks']:
+        raise NoHomeworkInResponse('Нет новых домащних работ с прошлого запроса.')
 
 
 def parse_status(homework):
@@ -102,7 +120,8 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    check_tokens()
+    if check_tokens() is False:
+        raise NoTokenEnv('Не хватает переменных окружения.')
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
     prev_status = None
