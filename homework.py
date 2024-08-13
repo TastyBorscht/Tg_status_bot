@@ -7,7 +7,9 @@ import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import NoTokenEnv, WrongHomeworkStatus, ApiIsNotReachable, CantSendMessage, NoHomeworkInResponse
+from exceptions import (
+    NoTokenEnv, WrongHomeworkStatus, ApiIsNotReachable, CantSendMessage, NoHomeworkInResponse
+)
 
 load_dotenv()
 
@@ -38,13 +40,13 @@ logger.addHandler(handler)
 def check_tokens():
     """Проверка наличия переменных среды."""
     required_tokens = [
-        'PRACTICUM_TOKEN',
-        'TELEGRAM_TOKEN',
-        'TELEGRAM_CHAT_ID',
+        PRACTICUM_TOKEN,
+        TELEGRAM_TOKEN,
+        TELEGRAM_CHAT_ID,
     ]
     missing_tokens = []
     for token in required_tokens:
-        if token not in os.environ:
+        if not token:
             missing_tokens.append(token)
     if missing_tokens:
         logger.critical(
@@ -75,27 +77,24 @@ def get_api_answer(timestamp):
             params={'from_date': f'{timestamp}'},
         )
     except Exception:
-        logger.error(f'API не доступен, статус запроса {homework_statuses.status_code}')
-        raise requests.RequestException(f'API не доступен, статус запроса {homework_statuses.status_code}')
+        logger.error(
+            f'API не доступен, статус запроса {homework_statuses.status_code}'
+        )
+        raise requests.RequestException(
+            f'API не доступен, статус запроса {homework_statuses.status_code}'
+        )
     if homework_statuses.status_code != HTTPStatus.OK:
-        logger.error(f'Неправильный код запроса: {homework_statuses.status_code}')
-        raise ApiIsNotReachable(f'API не доступен, статус запроса {homework_statuses.status_code}')
+        logger.error(
+            f'Неправильный код запроса: {homework_statuses.status_code}'
+        )
+        raise ApiIsNotReachable(
+            f'API не доступен, статус запроса {homework_statuses.status_code}'
+        )
     return homework_statuses.json()
 
 
-# def check_response(api_response):
-#     """Проверяет, содержит ли ответ от API сервиса нужный словарь."""
-#     if 'homeworks' not in api_response:
-#         raise NoHomeworkInResponse
-#     if not (
-#             isinstance(api_response, dict)
-#             and isinstance(api_response['homeworks'], list)
-#     ):
-#         raise TypeError('Неверная структура данных в ответе от api-сервиса.')
-
-
 def check_response(api_response):
-    """Проверяет, содержит ли ответ от API сервиса нужный словарь."""
+    """Проверяет, содержит ли ответ от API нужные данные."""
     if not isinstance(api_response, dict):
         raise TypeError('Неверная структура данных в ответе от api-сервиса.')
     if 'homeworks' not in api_response:
@@ -104,7 +103,8 @@ def check_response(api_response):
     if not isinstance(api_response['homeworks'], list):
         raise TypeError('Неверная структура данных в ответе от api-сервиса.')
     if not api_response['homeworks']:
-        raise NoHomeworkInResponse('Нет новых домащних работ с прошлого запроса.')
+        logger.debug('Нет новых домашних работ с прошлого запроса.')
+        # raise NoHomeworkInResponse('Нет новых домашних работ с прошлого запроса.')
 
 
 def parse_status(homework):
@@ -130,22 +130,20 @@ def main():
         try:
             api_response = get_api_answer(timestamp)
             check_response(api_response)
-            if prev_status == api_response['homeworks'][0]['status']:
-                logger.debug('статус домашней работы не изменился.')
-                continue
-            prev_status = api_response['homeworks'][0]['status']
+            # if prev_status == api_response['homeworks'][0]['status']:
+            #     logger.debug('статус домашней работы не изменился.')
+            #     continue
+            # prev_status = api_response['homeworks'][0]['status']
             timestamp = api_response['current_date']
             send_message(bot, parse_status(api_response['homeworks'][0]))
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
-            if prev_message != message and not isinstance(error, CantSendMessage):
+            if (
+                prev_message != message and not isinstance(error, CantSendMessage)
+                and send_message(message)
+            ):
                 prev_message = message
-                try:
-                    send_message(bot, message)
-                except Exception as error:
-                    logger.error(error, exc_info=True)
-                    continue
             if prev_message == message:
                 logger.debug('Статус проверки не изменился.')
         finally:
