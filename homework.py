@@ -3,13 +3,13 @@ import os
 import sys
 import time
 from http import HTTPStatus
+
 import requests
 from dotenv import load_dotenv
 from telebot import TeleBot
 
-from exceptions import (
-    NoTokenEnv, WrongHomeworkStatus, ApiIsNotReachable, CantSendMessage, NoHomeworkInResponse
-)
+from exceptions import (ApiIsNotReachable, CantSendMessage,
+                        NoHomeworkInResponse, NoTokenEnv, WrongHomeworkStatus)
 
 load_dotenv()
 
@@ -104,7 +104,6 @@ def check_response(api_response):
         raise TypeError('Неверная структура данных в ответе от api-сервиса.')
     if not api_response['homeworks']:
         logger.debug('Нет новых домашних работ с прошлого запроса.')
-        # raise NoHomeworkInResponse('Нет новых домашних работ с прошлого запроса.')
 
 
 def parse_status(homework):
@@ -124,23 +123,20 @@ def main():
         raise NoTokenEnv('Не хватает переменных окружения.')
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
-    prev_status = None
     prev_message = None
     while True:
         try:
             api_response = get_api_answer(timestamp)
             check_response(api_response)
-            # if prev_status == api_response['homeworks'][0]['status']:
-            #     logger.debug('статус домашней работы не изменился.')
-            #     continue
-            # prev_status = api_response['homeworks'][0]['status']
             timestamp = api_response['current_date']
             send_message(bot, parse_status(api_response['homeworks'][0]))
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
             if (
-                prev_message != message and not isinstance(error, CantSendMessage)
+                prev_message != message and not isinstance(error,
+                                                           CantSendMessage
+                                                           )
                 and send_message(message)
             ):
                 prev_message = message
