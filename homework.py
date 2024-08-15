@@ -6,7 +6,9 @@ from http import HTTPStatus
 
 import requests
 from dotenv import load_dotenv
+from requests import RequestException
 from telebot import TeleBot
+from telebot.apihelper import ApiException
 
 from exceptions import (ApiIsNotReachable, CantSendMessage,
                         NoHomeworkInResponse, NoTokenEnv, WrongHomeworkStatus)
@@ -31,7 +33,8 @@ logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
 formatter = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(message)s'
+    '%(asctime)s - %(levelname)s - %(module)s - '
+    '%(filename)s:%(lineno)d - %(funcName)s - %(message)s'
 )
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -39,38 +42,40 @@ logger.addHandler(handler)
 
 def check_tokens():
     """Проверка наличия переменных среды."""
-    required_tokens = [
-        PRACTICUM_TOKEN,
-        TELEGRAM_TOKEN,
-        TELEGRAM_CHAT_ID,
-    ]
+    required_tokens = {
+        'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+        'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+    }
     missing_tokens = []
-    for token in required_tokens:
+    for token_name, token in required_tokens.items():
         if not token:
-            missing_tokens.append(token)
+            missing_tokens.append(token_name)
     if missing_tokens:
         logger.critical(
             f'для работы бота не хватает токена(ов): {missing_tokens}'
         )
-        return False
-    return True
+        return missing_tokens
+    return False
 
 
 def send_message(bot, message):
     """Отправка сообщения в телеграм."""
     try:
+        logger.debug(f'Начало отправки сообщения "{message}"')
         bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
             text=message
         )
         logger.debug(f'Удачная отправка сообщения "{message}"')
-    except Exception as e:
+    except (ApiException, RequestException) as e:
         raise CantSendMessage(f'Не переслано сообщение {message}. Ошибка: {e}')
 
 
 def get_api_answer(timestamp):
     """Получить ответ от api-сервиса."""
     try:
+        logger.debug(f'Начало отправки запроса к API-сервису.')
         homework_statuses = requests.get(
             ENDPOINT,
             headers=HEADERS,
@@ -119,10 +124,11 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens() is False:
+    if check_tokens():
         raise NoTokenEnv('Не хватает переменных окружения.')
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    # timestamp = int(time.time())
+    timestamp = 0
     prev_message = None
     while True:
         try:
