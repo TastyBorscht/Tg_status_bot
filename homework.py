@@ -26,7 +26,6 @@ HOMEWORK_VERDICTS = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -72,28 +71,29 @@ def send_message(bot, message):
         raise CantSendMessage(f'Не переслано сообщение {message}. Ошибка: {e}')
 
 
-def get_api_answer(timestamp):
+def get_api_answer(connection_data):
     """Получить ответ от api-сервиса."""
     try:
-        logger.debug(f'Начало отправки запроса к API-сервису.')
+        logger.debug(
+            'Начало отправки запроса к API-сервису {ENDPOINT}, '
+            'данные заголовка {HEADERS}, с параметрами {PARAMS}.'.format(
+                **connection_data
+            ))
         homework_statuses = requests.get(
-            ENDPOINT,
-            headers=HEADERS,
-            params={'from_date': f'{timestamp}'},
+            connection_data['ENDPOINT'],
+            headers=connection_data['HEADERS'],
+            params=connection_data['PARAMS'],
         )
     except Exception:
-        logger.error(
-            f'API не доступен, статус запроса {homework_statuses.status_code}'
-        )
         raise requests.RequestException(
-            f'API не доступен, статус запроса {homework_statuses.status_code}'
+            f'API не доступен, статус запроса'
         )
     if homework_statuses.status_code != HTTPStatus.OK:
         logger.error(
-            f'Неправильный код запроса: {homework_statuses.status_code}'
+            f'Неправильный код запроса:'
         )
         raise ApiIsNotReachable(
-            f'API не доступен, статус запроса {homework_statuses.status_code}'
+            f'API не доступен, статус запроса'
         )
     return homework_statuses.json()
 
@@ -126,13 +126,18 @@ def main():
     """Основная логика работы бота."""
     if check_tokens():
         raise NoTokenEnv('Не хватает переменных окружения.')
-    bot = TeleBot(token=TELEGRAM_TOKEN)
-    # timestamp = int(time.time())
     timestamp = 0
+    # timestamp = int(time.time())
+    connection_data = {
+        'ENDPOINT': 'https://practicum.yandex.ru/api/user_api/homework_statuses/',
+        'HEADERS': f'{HEADERS}',
+        'PARAMS': {'from_date': f'{timestamp}'}
+    }
+    bot = TeleBot(token=TELEGRAM_TOKEN)
     prev_message = None
     while True:
         try:
-            api_response = get_api_answer(timestamp)
+            api_response = get_api_answer(connection_data)
             check_response(api_response)
             timestamp = api_response['current_date']
             send_message(bot, parse_status(api_response['homeworks'][0]))

@@ -31,16 +31,25 @@ from exceptions import WrongHomeworkStatus
 # if '2' not in d:
 #     print('im sosige')
 
-required_tokens = [
-    'PRACTICUM_TOKEN',
-    'TELEGRAM_TOKEN',
-    'TELEGRAM_CHAT_ID',
-]
-missing_tokens = []
+# required_tokens = [
+#     'PRACTICUM_TOKEN',
+#     'TELEGRAM_TOKEN',
+#     'TELEGRAM_CHAT_ID',
+# ]
+# missing_tokens = []
+#
+#
+# for token in required_tokens:
+#     if token not in os.environ:
+#         missing_tokens.append(token)
+#
+# print(missing_tokens)
+connection_data = {
+        'ENDPOINT': 'https://practicum.yandex.ru/api/user_api/homework_statuses/',
+        'headers': 'header_1',
+        'params': {'from_date': '10:55'}
+    }
 
-
-for token in required_tokens:
-    if token not in os.environ:
-        missing_tokens.append(token)
-
-print(missing_tokens)
+str_ = ('Начало отправки запроса к API-сервису {ENDPOINT}, '
+        'данные заголовка {headers}, время {params}.').format(**connection_data)
+print(str_)
