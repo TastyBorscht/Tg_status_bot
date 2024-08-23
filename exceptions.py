@@ -1,3 +1,6 @@
+import requests
+
+
 class NoTokenEnv(Exception):
     pass
 
@@ -6,7 +9,7 @@ class WrongHomeworkStatus(Exception):
     pass
 
 
-class ApiIsNotReachable(Exception):
+class ApiIsNotReachable(requests.RequestException):
     pass
 
 

@@ -74,27 +74,24 @@ def send_message(bot, message):
 def get_api_answer(connection_data):
     """Получить ответ от api-сервиса."""
     try:
-        logger.debug(
-            'Начало отправки запроса к API-сервису {ENDPOINT}, '
-            'данные заголовка {HEADERS}, с параметрами {PARAMS}.'.format(
-                **connection_data
-            ))
+        # logger.debug(
+        #     'Начало отправки запроса к API-сервису {ENDPOINT}, '
+        #     'данные заголовка {HEADERS}, с параметрами {PARAMS}.'.format(
+        #         **connection_data
+        #     ))
+        # При использовании варианта выше почему-то пайтест выдавал
+        # TypeError: str.format() argument after  must be a mapping, not int
+        # хотя код работал. Пытался по другому распаковывать, без
+        # разнц
         homework_statuses = requests.get(
             connection_data['ENDPOINT'],
             headers=connection_data['HEADERS'],
             params=connection_data['PARAMS'],
         )
-    except Exception:
-        raise requests.RequestException(
-            f'API не доступен, статус запроса'
-        )
+    except RequestException:
+        raise ApiIsNotReachable
     if homework_statuses.status_code != HTTPStatus.OK:
-        logger.error(
-            f'Неправильный код запроса:'
-        )
-        raise ApiIsNotReachable(
-            f'API не доступен, статус запроса'
-        )
+        raise ApiIsNotReachable
     return homework_statuses.json()
 
 
@@ -130,7 +127,7 @@ def main():
     # timestamp = int(time.time())
     connection_data = {
         'ENDPOINT': 'https://practicum.yandex.ru/api/user_api/homework_statuses/',
-        'HEADERS': f'{HEADERS}',
+        'HEADERS': HEADERS,
         'PARAMS': {'from_date': f'{timestamp}'}
     }
     bot = TeleBot(token=TELEGRAM_TOKEN)
