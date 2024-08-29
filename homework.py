@@ -69,20 +69,17 @@ def send_message(bot, message):
         logger.debug(f'Удачная отправка сообщения "{message}"')
     except (ApiException, RequestException) as e:
         raise CantSendMessage(f'Не переслано сообщение {message}. Ошибка: {e}')
+    return True
 
 
 def get_api_answer(connection_data):
     """Получить ответ от api-сервиса."""
     try:
-        # logger.debug(
-        #     'Начало отправки запроса к API-сервису {ENDPOINT}, '
-        #     'данные заголовка {HEADERS}, с параметрами {PARAMS}.'.format(
-        #         **connection_data
-        #     ))
-        # При использовании варианта выше почему-то пайтест выдавал
-        # TypeError: str.format() argument after  must be a mapping, not int
-        # хотя код работал. Пытался по другому распаковывать, без
-        # разнц
+        logger.debug(
+            'Начало отправки запроса к API-сервису {ENDPOINT}, '
+            'данные заголовка {HEADERS}, с параметрами {PARAMS}.'.format(
+                **connection_data
+            ))
         homework_statuses = requests.get(
             connection_data['ENDPOINT'],
             headers=connection_data['HEADERS'],
@@ -98,14 +95,23 @@ def get_api_answer(connection_data):
 def check_response(api_response):
     """Проверяет, содержит ли ответ от API нужные данные."""
     if not isinstance(api_response, dict):
-        raise TypeError('Неверная структура данных в ответе от api-сервиса.')
+        raise TypeError(
+            f'ответ от api-сервиса содержит {type(api_response)} вместо dict'
+        )
     if 'homeworks' not in api_response:
         raise NoHomeworkInResponse(
-            'Ответ от api-сервиса не содержит списка домашних работ.')
-    if not isinstance(api_response['homeworks'], list):
-        raise TypeError('Неверная структура данных в ответе от api-сервиса.')
-    if not api_response['homeworks']:
+            'Словарь, полученный от api-сервиса не содержит ключа, '
+            'дающего доступ к списку домашних работ.'
+        )
+    homeworks_lst = api_response['homeworks']
+    if not isinstance(homeworks_lst, list):
+        raise TypeError(
+            f'Неверная структура данных в ответе от api-сервиса,'
+            f'ожидался list вместо {type(homeworks_lst)}.'
+        )
+    if not homeworks_lst:
         logger.debug('Нет новых домашних работ с прошлого запроса.')
+    return homeworks_lst
 
 
 def parse_status(homework):
@@ -123,32 +129,36 @@ def main():
     """Основная логика работы бота."""
     if check_tokens():
         raise NoTokenEnv('Не хватает переменных окружения.')
-    timestamp = 0
-    # timestamp = int(time.time())
+    bot = TeleBot(token=TELEGRAM_TOKEN)
+    prev_message = None
+    timestamp = int(time.time())
     connection_data = {
-        'ENDPOINT': 'https://practicum.yandex.ru/api/user_api/homework_statuses/',
+        'ENDPOINT': 'https://practicum.yandex.ru/api/'
+                    'user_api/homework_statuses/',
         'HEADERS': HEADERS,
         'PARAMS': {'from_date': f'{timestamp}'}
     }
-    bot = TeleBot(token=TELEGRAM_TOKEN)
-    prev_message = None
     while True:
         try:
             api_response = get_api_answer(connection_data)
-            check_response(api_response)
-            timestamp = api_response['current_date']
-            send_message(bot, parse_status(api_response['homeworks'][0]))
+            homeworks_lst = check_response(api_response)
+            if homeworks_lst:
+                if send_message(
+                        bot, parse_status(homeworks_lst[0])):
+                    timestamp = api_response.get('current_date', timestamp)
+                    connection_data['PARAMS'] = {'from_date': f'{timestamp}'}
+                    prev_message = None
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
             if (
-                prev_message != message and not isinstance(error,
-                                                           CantSendMessage
-                                                           )
-                and send_message(message)
+                    prev_message != message and not isinstance(error,
+                                                               CantSendMessage
+                                                               )
+                    and send_message(message)
             ):
                 prev_message = message
-            if prev_message == message:
+            else:
                 logger.debug('Статус проверки не изменился.')
         finally:
             time.sleep(RETRY_PERIOD)
