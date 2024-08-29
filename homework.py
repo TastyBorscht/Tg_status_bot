@@ -72,8 +72,14 @@ def send_message(bot, message):
     return True
 
 
-def get_api_answer(connection_data):
+def get_api_answer(timestamp):
     """Получить ответ от api-сервиса."""
+    connection_data = {
+        'ENDPOINT': 'https://practicum.yandex.ru/api/'
+                    'user_api/homework_statuses/',
+        'HEADERS': HEADERS,
+        'PARAMS': {'from_date': timestamp}
+    }
     try:
         logger.debug(
             'Начало отправки запроса к API-сервису {ENDPOINT}, '
@@ -132,21 +138,14 @@ def main():
     bot = TeleBot(token=TELEGRAM_TOKEN)
     prev_message = None
     timestamp = int(time.time())
-    connection_data = {
-        'ENDPOINT': 'https://practicum.yandex.ru/api/'
-                    'user_api/homework_statuses/',
-        'HEADERS': HEADERS,
-        'PARAMS': {'from_date': f'{timestamp}'}
-    }
     while True:
         try:
-            api_response = get_api_answer(connection_data)
+            api_response = get_api_answer(timestamp)
             homeworks_lst = check_response(api_response)
             if homeworks_lst:
                 if send_message(
                         bot, parse_status(homeworks_lst[0])):
                     timestamp = api_response.get('current_date', timestamp)
-                    connection_data['PARAMS'] = {'from_date': f'{timestamp}'}
                     prev_message = None
         except Exception as error:
             logger.error(error, exc_info=True)
