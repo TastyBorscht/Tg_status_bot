@@ -74,8 +74,8 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """Получить ответ от api-сервиса."""
     connection_data = {
-        'url': 'https://practicum.yandex.ru/api/'
-                    'user_api/homework_statuses/',
+        'url':
+            'https://practicum.yandex.ru/api/user_api/homework_statuses/',
         'params': {'from_date': timestamp},
         'headers': HEADERS,
     }
