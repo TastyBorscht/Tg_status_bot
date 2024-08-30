@@ -74,19 +74,19 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """Получить ответ от api-сервиса."""
     connection_data = {
-        'ENDPOINT': 'https://practicum.yandex.ru/api/'
+        'url': 'https://practicum.yandex.ru/api/'
                     'user_api/homework_statuses/',
-        'PARAMS': {'from_date': timestamp},
-        'HEADERS': HEADERS,
+        'params': {'from_date': timestamp},
+        'headers': HEADERS,
     }
     try:
         logger.debug(
-            'Начало отправки запроса к API-сервису {ENDPOINT}, '
-            'данные заголовка {HEADERS}, с параметрами {PARAMS}.'.format(
+            'Начало отправки запроса к API-сервису {url}, '
+            'данные заголовка {headers}, с параметрами {params}.'.format(
                 **connection_data
             ))
         homework_statuses = requests.get(
-            *connection_data
+            **connection_data
         )
     except RequestException:
         raise ApiIsNotReachable('Api-сервис недоступен.')
