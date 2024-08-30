@@ -54,8 +54,7 @@ def check_tokens():
         logger.critical(
             f'для работы бота не хватает токена(ов): {missing_tokens}'
         )
-        return missing_tokens
-    return False
+    return missing_tokens
 
 
 def send_message(bot, message):
@@ -77,8 +76,8 @@ def get_api_answer(timestamp):
     connection_data = {
         'ENDPOINT': 'https://practicum.yandex.ru/api/'
                     'user_api/homework_statuses/',
+        'PARAMS': {'from_date': timestamp},
         'HEADERS': HEADERS,
-        'PARAMS': {'from_date': timestamp}
     }
     try:
         logger.debug(
@@ -87,14 +86,12 @@ def get_api_answer(timestamp):
                 **connection_data
             ))
         homework_statuses = requests.get(
-            connection_data['ENDPOINT'],
-            headers=connection_data['HEADERS'],
-            params=connection_data['PARAMS'],
+            *connection_data
         )
     except RequestException:
-        raise ApiIsNotReachable
+        raise ApiIsNotReachable('Api-сервис недоступен.')
     if homework_statuses.status_code != HTTPStatus.OK:
-        raise ApiIsNotReachable
+        raise ApiIsNotReachable('Неправильный статус ответа от api-сервиса.')
     return homework_statuses.json()
 
 
@@ -115,8 +112,6 @@ def check_response(api_response):
             f'Неверная структура данных в ответе от api-сервиса,'
             f'ожидался list вместо {type(homeworks_lst)}.'
         )
-    if not homeworks_lst:
-        logger.debug('Нет новых домашних работ с прошлого запроса.')
     return homeworks_lst
 
 
@@ -126,9 +121,8 @@ def parse_status(homework):
         homework_name = homework['homework_name']
         verdict = HOMEWORK_VERDICTS[f'{homework["status"]}']
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    except Exception as e:
-        logger.error(e)
-        raise WrongHomeworkStatus('Неожиданный статус домашней работы.')
+    except KeyError as e:
+        raise WrongHomeworkStatus(f'Неожиданный статус домашней работы {e}.')
 
 
 def main():
@@ -147,6 +141,8 @@ def main():
                         bot, parse_status(homeworks_lst[0])):
                     timestamp = api_response.get('current_date', timestamp)
                     prev_message = None
+            else:
+                logger.debug('Нет новых домашних работ с прошлого запроса.')
         except Exception as error:
             logger.error(error, exc_info=True)
             message = f'Сбой в работе программы: {error}.'
@@ -157,8 +153,6 @@ def main():
                     and send_message(message)
             ):
                 prev_message = message
-            else:
-                logger.debug('Статус проверки не изменился.')
         finally:
             time.sleep(RETRY_PERIOD)
 
